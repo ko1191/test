@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  phone        String?
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  postalCode   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  invoices     Invoice[]
+}
+
+model InvoiceStatus {
+  id        Int       @id @default(autoincrement())
+  code      String    @unique
+  label     String
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  invoices  Invoice[]
+}
+
+model Invoice {
+  id              Int               @id @default(autoincrement())
+  invoiceNumber   String            @unique
+  clientId        Int
+  client          Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  invoiceStatusId Int
+  status          InvoiceStatus     @relation(fields: [invoiceStatusId], references: [id])
+  issueDate       DateTime
+  dueDate         DateTime
+  notes           String?
+  subtotal        Decimal
+  tax             Decimal
+  total           Decimal
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  lineItems       InvoiceLineItem[]
+}
+
+model InvoiceLineItem {
+  id          Int      @id @default(autoincrement())
+  invoiceId   Int
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Decimal
+  lineTotal   Decimal
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
