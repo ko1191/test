@@ -71,6 +71,33 @@ VITE_API_BASE_URL=http://localhost:3000
 
 The Express server boots from `apps/backend/src/index.ts` and exposes a `GET /health` endpoint for readiness checks. Responses use JSON and the server is configured to parse JSON payloads by default.
 
+### Client API
+
+CRUD endpoints for managing clients are available under `/clients`. All requests and responses are validated with [Zod](https://zod.dev), and errors are normalized by a shared middleware layer.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/clients` | List clients (set `withRelations=true` to include invoices). |
+| `GET` | `/clients/:id` | Fetch a single client by id. Optional `withRelations` query flag. |
+| `POST` | `/clients` | Create a client. Accepts `name`, `email`, and optional contact details. |
+| `PUT` | `/clients/:id` | Update a client. Requires at least one field in the request body. |
+| `DELETE` | `/clients/:id` | Remove a client record. |
+
+Successful responses are wrapped in a `{ "data": ... }` envelope. Validation failures return a `400` status with a structured payload similar to:
+
+```json
+{
+  "error": {
+    "message": "Validation failed",
+    "issues": [
+      { "path": ["email"], "message": "Invalid email address" }
+    ]
+  }
+}
+```
+
+Prisma `P2002` (unique constraint) and `P2025` (record not found) errors are mapped to HTTP `409` and `404` status codes respectively.
+
 Build the production bundle with:
 
 ```bash
