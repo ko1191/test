@@ -50,10 +50,12 @@ Create an `.env` file based on `.env.example`:
 ```
 PORT=3000
 NODE_ENV=development
+DATABASE_URL="file:./dev.db"
 ```
 
 - `PORT`: TCP port for the API server.
 - `NODE_ENV`: Runtime environment descriptor (`development`, `production`, etc.).
+- `DATABASE_URL`: Connection string for the local SQLite database managed by Prisma.
 
 ### Frontend (`apps/frontend`)
 
@@ -76,6 +78,34 @@ npm run build --workspace apps/backend
 ```
 
 The compiled output is written to `apps/backend/dist/`.
+
+## Database & Prisma
+
+The backend uses [Prisma](https://www.prisma.io/) with a SQLite database stored at `apps/backend/prisma/dev.db` for local development. Ensure the backend `.env` file contains a `DATABASE_URL` that points to this database before running any commands.
+
+### Apply migrations
+
+```bash
+npm run prisma:migrate --workspace apps/backend
+```
+
+This command applies the checked-in migrations and will create the local SQLite database if it does not already exist.
+
+### Seed development data
+
+```bash
+npm run prisma:seed --workspace apps/backend
+```
+
+Seeding populates reference data such as invoice statuses along with sample clients, invoices, and line items for local testing.
+
+### Inspect data with Prisma Studio
+
+```bash
+npm run prisma:studio --workspace apps/backend
+```
+
+Prisma Studio provides a convenient GUI for browsing and editing the SQLite data during development.
 
 ## Frontend Overview
 
