@@ -12,6 +12,8 @@ build/
 apps/backend/.env
 apps/backend/.env.*
 !apps/backend/.env.example
+apps/backend/prisma/dev.db
+apps/backend/prisma/*.db-journal
 apps/frontend/.env
 apps/frontend/.env.*
 !apps/frontend/.env.example
