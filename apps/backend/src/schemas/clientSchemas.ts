@@ -1,52 +1,10 @@
 import { z } from 'zod';
+import { invoiceResponseSchema } from './invoiceSchemas';
 
 const isoDateTimeString = z.string().datetime();
 const trimmedString = z.string().trim();
 const nonEmptyString = trimmedString.min(1, 'Value cannot be empty');
 const optionalNullableString = nonEmptyString.nullable().optional();
-
-const invoiceStatusResponseSchema = z
-  .object({
-    id: z.number().int().positive(),
-    code: z.string(),
-    label: z.string(),
-    sortOrder: z.number().int(),
-    createdAt: isoDateTimeString,
-    updatedAt: isoDateTimeString
-  })
-  .strict();
-
-const invoiceLineItemResponseSchema = z
-  .object({
-    id: z.number().int().positive(),
-    invoiceId: z.number().int().positive(),
-    description: z.string(),
-    quantity: z.number().int().nonnegative(),
-    unitPrice: z.string(),
-    lineTotal: z.string(),
-    createdAt: isoDateTimeString,
-    updatedAt: isoDateTimeString
-  })
-  .strict();
-
-const invoiceResponseSchema = z
-  .object({
-    id: z.number().int().positive(),
-    invoiceNumber: z.string(),
-    clientId: z.number().int().positive(),
-    invoiceStatusId: z.number().int().positive(),
-    issueDate: isoDateTimeString,
-    dueDate: isoDateTimeString,
-    notes: z.string().nullable(),
-    subtotal: z.string(),
-    tax: z.string(),
-    total: z.string(),
-    createdAt: isoDateTimeString,
-    updatedAt: isoDateTimeString,
-    status: invoiceStatusResponseSchema,
-    lineItems: z.array(invoiceLineItemResponseSchema)
-  })
-  .strict();
 
 const clientBaseSchema = z
   .object({

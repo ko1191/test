@@ -2,6 +2,7 @@ import express from 'express';
 import { prisma } from './db/prisma';
 import { errorHandler } from './middleware/errorHandler';
 import { clientRouter } from './routes/clients';
+import { invoiceRouter } from './routes/invoices';
 
 export function createApp() {
   const app = express();
@@ -19,6 +20,7 @@ export function createApp() {
   });
 
   app.use('/clients', clientRouter);
+  app.use('/invoices', invoiceRouter);
 
   app.use((_req, res) => {
     res.status(404).json({

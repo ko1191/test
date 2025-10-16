@@ -98,6 +98,64 @@ Successful responses are wrapped in a `{ "data": ... }` envelope. Validation fai
 
 Prisma `P2002` (unique constraint) and `P2025` (record not found) errors are mapped to HTTP `409` and `404` status codes respectively.
 
+### Invoice API
+
+Invoice management endpoints live under `/invoices`. Line items, subtotals, tax, and totals are recalculated on every create or update request. Provide an optional `taxRate` as a decimal fraction (for example `0.08` for 8%) and an optional `statusCode` to move an invoice out of the default `DRAFT` state. All numeric amounts are returned as strings to preserve precision.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/invoices` | List invoices. Supports optional `status` and `clientId` query filters. |
+| `GET` | `/invoices/:id` | Retrieve a single invoice including client, status, and line items. |
+| `POST` | `/invoices` | Create an invoice. Requires at least one line item. Totals are calculated automatically. |
+| `PUT` | `/invoices/:id` | Update invoice details, line items, or status. At least one field is required. |
+
+Sample payload for creating an invoice:
+
+```json
+{
+  "invoiceNumber": "INV-2024-110",
+  "clientId": 7,
+  "issueDate": "2024-05-01T00:00:00.000Z",
+  "dueDate": "2024-05-31T00:00:00.000Z",
+  "statusCode": "SENT",
+  "taxRate": "0.08",
+  "lineItems": [
+    { "description": "Implementation sprint", "quantity": 40, "unitPrice": "95" },
+    { "description": "Project management", "quantity": 10, "unitPrice": "60" }
+  ],
+  "notes": "Second milestone"
+}
+```
+
+A successful response wraps the computed totals and nested relations:
+
+```json
+{
+  "data": {
+    "id": 12,
+    "invoiceNumber": "INV-2024-110",
+    "subtotal": "4700.00",
+    "tax": "376.00",
+    "total": "5076.00",
+    "status": { "code": "SENT", "label": "Sent" },
+    "lineItems": [
+      { "description": "Implementation sprint", "quantity": 40, "unitPrice": "95.00", "lineTotal": "3800.00" },
+      { "description": "Project management", "quantity": 10, "unitPrice": "60.00", "lineTotal": "600.00" }
+    ],
+    "client": { "id": 7, "name": "Globex Labs", "email": "accounts@globex.test" }
+  }
+}
+```
+
+Status transitions are validated. The following movements are supported:
+
+- `DRAFT → SENT`
+- `SENT → PAID`
+- `SENT → OVERDUE`
+- `OVERDUE → PAID`
+
+Attempting to transition outside of these paths returns a `400` response with a descriptive error payload.
+
 Build the production bundle with:
 
 ```bash
