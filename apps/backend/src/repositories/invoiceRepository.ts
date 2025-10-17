@@ -13,8 +13,24 @@ export type InvoiceWithRelations = Prisma.InvoiceGetPayload<{
   include: typeof invoiceInclude;
 }>;
 
-export async function listInvoices() {
+export type InvoiceListFilters = {
+  statusCode?: string;
+  clientId?: number;
+};
+
+export async function listInvoices(filters: InvoiceListFilters = {}) {
+  const where: Prisma.InvoiceWhereInput = {};
+
+  if (typeof filters.clientId === 'number') {
+    where.clientId = filters.clientId;
+  }
+
+  if (filters.statusCode) {
+    where.status = { is: { code: filters.statusCode } };
+  }
+
   return prisma.invoice.findMany({
+    where: Object.keys(where).length ? where : undefined,
     orderBy: { issueDate: 'desc' },
     include: invoiceInclude
   });
