@@ -18,6 +18,10 @@ import {
   createInvoiceWithCalculations,
   updateInvoiceWithCalculations
 } from '../services/invoiceService';
+import {
+  ensureInvoicePdf,
+  getInvoicePdfDownloadName
+} from '../services/invoiceDocumentService';
 import { serializeInvoice } from '../serializers/invoiceSerializer';
 
 export const invoiceRouter = Router();
@@ -57,6 +61,34 @@ invoiceRouter.get(
     const payload = serializeInvoice(invoice);
 
     res.json({ data: invoiceDetailResponseSchema.parse(payload) });
+  })
+);
+
+invoiceRouter.get(
+  '/:id/pdf',
+  asyncHandler(async (req, res) => {
+    const { id } = invoiceIdParamSchema.parse(req.params);
+    const invoice = await getInvoiceById(id);
+
+    if (!invoice) {
+      throw new AppError('Invoice not found', 404);
+    }
+
+    const filePath = await ensureInvoicePdf(invoice);
+    const downloadName = getInvoicePdfDownloadName(invoice);
+
+    res.type('application/pdf');
+
+    await new Promise<void>((resolve, reject) => {
+      res.download(filePath, downloadName, (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
   })
 );
 

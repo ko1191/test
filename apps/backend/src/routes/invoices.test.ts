@@ -1,6 +1,8 @@
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import request from 'supertest';
-import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { Prisma } from '@prisma/client';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../repositories/invoiceRepository', () => ({
   listInvoices: vi.fn(),
@@ -10,6 +12,11 @@ vi.mock('../repositories/invoiceRepository', () => ({
 vi.mock('../services/invoiceService', () => ({
   createInvoiceWithCalculations: vi.fn(),
   updateInvoiceWithCalculations: vi.fn()
+}));
+
+vi.mock('../services/invoiceDocumentService', () => ({
+  ensureInvoicePdf: vi.fn(),
+  getInvoicePdfDownloadName: vi.fn()
 }));
 
 import { createApp } from '../app';
@@ -22,60 +29,37 @@ import {
   createInvoiceWithCalculations,
   updateInvoiceWithCalculations
 } from '../services/invoiceService';
+import {
+  ensureInvoicePdf,
+  getInvoicePdfDownloadName
+} from '../services/invoiceDocumentService';
+import { createInvoiceFixture } from '../__fixtures__/invoiceFixture';
 
-const decimal = (value: number | string) => new Prisma.Decimal(value);
+const binaryParser = (
+  res: NodeJS.ReadableStream,
+  callback: (error: Error | null, data: Buffer) => void
+) => {
+  const chunks: Buffer[] = [];
 
-const baseInvoice: InvoiceWithRelations = {
-  id: 1,
-  invoiceNumber: 'INV-2024-100',
-  clientId: 42,
-  invoiceStatusId: 2,
-  issueDate: new Date('2024-04-01T00:00:00.000Z'),
-  dueDate: new Date('2024-04-30T00:00:00.000Z'),
-  notes: 'Consulting retainer',
-  subtotal: decimal('1000.00'),
-  tax: decimal('80.00'),
-  total: decimal('1080.00'),
-  createdAt: new Date('2024-04-01T00:00:00.000Z'),
-  updatedAt: new Date('2024-04-02T00:00:00.000Z'),
-  client: {
-    id: 42,
-    name: 'Acme Corporation',
-    email: 'billing@acme.test',
-    phone: null,
-    addressLine1: null,
-    addressLine2: null,
-    city: null,
-    state: null,
-    postalCode: null,
-    createdAt: new Date('2024-01-01T00:00:00.000Z'),
-    updatedAt: new Date('2024-01-02T00:00:00.000Z')
-  },
-  status: {
-    id: 2,
-    code: 'SENT',
-    label: 'Sent',
-    sortOrder: 2,
-    createdAt: new Date('2024-01-01T00:00:00.000Z'),
-    updatedAt: new Date('2024-01-02T00:00:00.000Z')
-  },
-  lineItems: [
-    {
-      id: 101,
-      invoiceId: 1,
-      description: 'Consulting hours',
-      quantity: 10,
-      unitPrice: decimal('100.00'),
-      lineTotal: decimal('1000.00'),
-      createdAt: new Date('2024-04-01T00:00:00.000Z'),
-      updatedAt: new Date('2024-04-01T00:00:00.000Z')
-    }
-  ]
+  res.on('data', (chunk) => {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, 'binary'));
+  });
+
+  res.on('end', () => {
+    callback(null, Buffer.concat(chunks));
+  });
+
+  res.on('error', (error) => {
+    callback(error, Buffer.alloc(0));
+  });
 };
+
+let baseInvoice: InvoiceWithRelations;
 
 describe('Invoice routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    baseInvoice = createInvoiceFixture();
   });
 
   it('lists invoices with serialization and optional filters', async () => {
@@ -195,12 +179,14 @@ describe('Invoice routes', () => {
       taxRate: '0.08'
     };
 
-    vi.mocked(createInvoiceWithCalculations).mockResolvedValue({
-      ...baseInvoice,
+    const createdInvoice = {
+      ...createInvoiceFixture(),
       id: 2,
       invoiceNumber: payload.invoiceNumber,
       clientId: payload.clientId
-    });
+    };
+
+    vi.mocked(createInvoiceWithCalculations).mockResolvedValue(createdInvoice);
 
     const response = await request(createApp()).post('/invoices').send(payload);
 
@@ -223,13 +209,15 @@ describe('Invoice routes', () => {
   });
 
   it('updates an invoice and returns the updated payload', async () => {
-    vi.mocked(updateInvoiceWithCalculations).mockResolvedValue({
-      ...baseInvoice,
+    const updatedInvoice = {
+      ...createInvoiceFixture(),
       status: {
         ...baseInvoice.status,
         code: 'PAID'
       }
-    });
+    };
+
+    vi.mocked(updateInvoiceWithCalculations).mockResolvedValue(updatedInvoice);
 
     const response = await request(createApp())
       .put('/invoices/1')
@@ -247,5 +235,45 @@ describe('Invoice routes', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error.message).toBe('Validation failed');
+  });
+
+  it('downloads a stored invoice pdf', async () => {
+    const invoice = createInvoiceFixture();
+    const downloadName = 'inv-2024-100.pdf';
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'invoice-pdf-'));
+
+    try {
+      const filePath = path.join(tempDir, 'invoice.pdf');
+      const pdfBuffer = Buffer.from('%PDF-1.4\nSample Invoice');
+      await fs.writeFile(filePath, pdfBuffer);
+
+      vi.mocked(getInvoiceById).mockResolvedValue(invoice);
+      vi.mocked(ensureInvoicePdf).mockResolvedValue(filePath);
+      vi.mocked(getInvoicePdfDownloadName).mockReturnValue(downloadName);
+
+      const response = await request(createApp())
+        .get('/invoices/1/pdf')
+        .buffer(true)
+        .parse(binaryParser);
+
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('application/pdf');
+      expect(response.headers['content-disposition']).toContain(downloadName);
+      expect(Buffer.isBuffer(response.body)).toBe(true);
+      expect((response.body as Buffer).equals(pdfBuffer)).toBe(true);
+      expect(vi.mocked(ensureInvoicePdf)).toHaveBeenCalledWith(invoice);
+      expect(vi.mocked(getInvoicePdfDownloadName)).toHaveBeenCalledWith(invoice);
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns 404 when requesting a pdf for a missing invoice', async () => {
+    vi.mocked(getInvoiceById).mockResolvedValue(null);
+
+    const response = await request(createApp()).get('/invoices/999/pdf');
+
+    expect(response.status).toBe(404);
+    expect(response.body.error.message).toBe('Invoice not found');
   });
 });
