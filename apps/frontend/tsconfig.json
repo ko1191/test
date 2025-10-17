@@ -4,7 +4,7 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "Node",
-    "types": ["vite/client"],
+    "types": ["vite/client", "vitest/globals"],
     "baseUrl": ".",
     "allowSyntheticDefaultImports": true
   },
