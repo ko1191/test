@@ -51,6 +51,7 @@ model Invoice {
   updatedAt       DateTime          @updatedAt
 
   lineItems       InvoiceLineItem[]
+  emailLogs       InvoiceEmailLog[]
 }
 
 model InvoiceLineItem {
@@ -63,4 +64,19 @@ model InvoiceLineItem {
   lineTotal   Decimal
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model InvoiceEmailLog {
+  id             Int      @id @default(autoincrement())
+  invoiceId      Int
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  recipientEmail String
+  templateName   String
+  subject        String
+  messageId      String?
+  success        Boolean
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+
+  @@index([invoiceId])
 }
