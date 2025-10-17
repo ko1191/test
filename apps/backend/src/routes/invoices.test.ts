@@ -19,6 +19,11 @@ vi.mock('../services/invoiceDocumentService', () => ({
   getInvoicePdfDownloadName: vi.fn()
 }));
 
+vi.mock('../services/invoiceEmailService', () => ({
+  sendInvoiceEmail: vi.fn()
+}));
+
+import { AppError } from '../errors/AppError';
 import { createApp } from '../app';
 import {
   listInvoices,
@@ -33,7 +38,9 @@ import {
   ensureInvoicePdf,
   getInvoicePdfDownloadName
 } from '../services/invoiceDocumentService';
+import { sendInvoiceEmail } from '../services/invoiceEmailService';
 import { createInvoiceFixture } from '../__fixtures__/invoiceFixture';
+import { createInvoiceEmailLogFixture } from '../__fixtures__/invoiceEmailLogFixture';
 
 const binaryParser = (
   res: NodeJS.ReadableStream,
@@ -275,5 +282,84 @@ describe('Invoice routes', () => {
 
     expect(response.status).toBe(404);
     expect(response.body.error.message).toBe('Invoice not found');
+  });
+
+  it('sends an invoice email and returns the audit log entry', async () => {
+    const invoice = createInvoiceFixture();
+    const log = createInvoiceEmailLogFixture({
+      invoiceId: invoice.id,
+      recipientEmail: 'accounts@example.com',
+      templateName: 'invoice-reminder',
+      messageId: '<reminder-message@example.com>'
+    });
+
+    vi.mocked(getInvoiceById).mockResolvedValue(invoice);
+    vi.mocked(sendInvoiceEmail).mockResolvedValue({ log });
+
+    const payload = {
+      template: 'invoice-reminder',
+      recipientEmail: 'accounts@example.com',
+      message: 'Please remit payment at your earliest convenience.'
+    };
+
+    const response = await request(createApp())
+      .post(`/invoices/${invoice.id}/email`)
+      .send(payload);
+
+    expect(response.status).toBe(202);
+    expect(vi.mocked(sendInvoiceEmail)).toHaveBeenCalledWith(invoice, payload);
+    expect(response.body).toEqual({
+      data: {
+        id: log.id,
+        invoiceId: log.invoiceId,
+        recipientEmail: log.recipientEmail,
+        templateName: log.templateName,
+        subject: log.subject,
+        messageId: log.messageId,
+        success: log.success,
+        errorMessage: log.errorMessage,
+        createdAt: log.createdAt.toISOString()
+      }
+    });
+  });
+
+  it('returns 404 when attempting to send an email for a missing invoice', async () => {
+    vi.mocked(getInvoiceById).mockResolvedValue(null);
+
+    const response = await request(createApp())
+      .post('/invoices/999/email')
+      .send({});
+
+    expect(response.status).toBe(404);
+    expect(sendInvoiceEmail).not.toHaveBeenCalled();
+  });
+
+  it('validates the email payload before sending', async () => {
+    const invoice = createInvoiceFixture();
+    vi.mocked(getInvoiceById).mockResolvedValue(invoice);
+
+    const response = await request(createApp())
+      .post(`/invoices/${invoice.id}/email`)
+      .send({ template: 'unknown-template' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.message).toBe('Validation failed');
+    expect(sendInvoiceEmail).not.toHaveBeenCalled();
+  });
+
+  it('propagates failures from the invoice email service', async () => {
+    const invoice = createInvoiceFixture();
+    vi.mocked(getInvoiceById).mockResolvedValue(invoice);
+
+    vi.mocked(sendInvoiceEmail).mockRejectedValue(
+      new AppError('Failed to send invoice email', 502)
+    );
+
+    const response = await request(createApp())
+      .post(`/invoices/${invoice.id}/email`)
+      .send({});
+
+    expect(response.status).toBe(502);
+    expect(response.body.error.message).toBe('Failed to send invoice email');
   });
 });

@@ -9,6 +9,7 @@ import {
   invoiceListResponseSchema,
   invoiceUpdateSchema
 } from '../schemas/invoiceSchemas';
+import { invoiceEmailSendSchema } from '../schemas/invoiceEmailSchemas';
 import {
   listInvoices,
   getInvoiceById,
@@ -22,7 +23,9 @@ import {
   ensureInvoicePdf,
   getInvoicePdfDownloadName
 } from '../services/invoiceDocumentService';
+import { sendInvoiceEmail } from '../services/invoiceEmailService';
 import { serializeInvoice } from '../serializers/invoiceSerializer';
+import { serializeInvoiceEmailLog } from '../serializers/invoiceEmailLogSerializer';
 
 export const invoiceRouter = Router();
 
@@ -89,6 +92,24 @@ invoiceRouter.get(
         resolve();
       });
     });
+  })
+);
+
+invoiceRouter.post(
+  '/:id/email',
+  asyncHandler(async (req, res) => {
+    const { id } = invoiceIdParamSchema.parse(req.params);
+    const invoice = await getInvoiceById(id);
+
+    if (!invoice) {
+      throw new AppError('Invoice not found', 404);
+    }
+
+    const body = invoiceEmailSendSchema.parse(req.body ?? {});
+    const { log } = await sendInvoiceEmail(invoice, body);
+    const payload = serializeInvoiceEmailLog(log);
+
+    res.status(202).json({ data: payload });
   })
 );
 

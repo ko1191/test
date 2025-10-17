@@ -52,12 +52,24 @@ PORT=3000
 NODE_ENV=development
 DATABASE_URL="file:./dev.db"
 INVOICE_PDF_DIR=./storage/invoices
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-smtp-username
+SMTP_PASSWORD=your-smtp-password
+SMTP_FROM="Invoicing System <billing@example.com>"
 ```
 
 - `PORT`: TCP port for the API server.
 - `NODE_ENV`: Runtime environment descriptor (`development`, `production`, etc.).
 - `DATABASE_URL`: Connection string for the local SQLite database managed by Prisma.
 - `INVOICE_PDF_DIR`: Optional path for saving generated invoice PDFs. Defaults to `apps/backend/storage/invoices` when not set.
+- `SMTP_HOST`: Hostname of your SMTP relay.
+- `SMTP_PORT`: TCP port for the SMTP server (defaults to `587` when omitted).
+- `SMTP_SECURE`: Set to `true` when using TLS/SSL (defaults to `false` unless the port is `465`).
+- `SMTP_USER`: Username for authenticating with the SMTP server.
+- `SMTP_PASSWORD`: Password for the SMTP user.
+- `SMTP_FROM`: Default `From` header used when sending invoice emails.
 
 ### Frontend (`apps/frontend`)
 
