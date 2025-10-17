@@ -51,11 +51,13 @@ Create an `.env` file based on `.env.example`:
 PORT=3000
 NODE_ENV=development
 DATABASE_URL="file:./dev.db"
+INVOICE_PDF_DIR=./storage/invoices
 ```
 
 - `PORT`: TCP port for the API server.
 - `NODE_ENV`: Runtime environment descriptor (`development`, `production`, etc.).
 - `DATABASE_URL`: Connection string for the local SQLite database managed by Prisma.
+- `INVOICE_PDF_DIR`: Optional path for saving generated invoice PDFs. Defaults to `apps/backend/storage/invoices` when not set.
 
 ### Frontend (`apps/frontend`)
 
@@ -106,6 +108,7 @@ Invoice management endpoints live under `/invoices`. Line items, subtotals, tax,
 | --- | --- | --- |
 | `GET` | `/invoices` | List invoices. Supports optional `status` and `clientId` query filters. |
 | `GET` | `/invoices/:id` | Retrieve a single invoice including client, status, and line items. |
+| `GET` | `/invoices/:id/pdf` | Download the generated PDF document for an invoice (generated on demand). |
 | `POST` | `/invoices` | Create an invoice. Requires at least one line item. Totals are calculated automatically. |
 | `PUT` | `/invoices/:id` | Update invoice details, line items, or status. At least one field is required. |
 
